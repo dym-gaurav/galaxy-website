@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Light Spiral Galaxy</title>
+  <title>Galaxy Replica - Side View</title>
   <style>
     html,body{height:100%;margin:0;background:#000;overflow:hidden}
     canvas{display:block;width:100vw;height:100vh}
@@ -28,12 +28,13 @@
   addEventListener('resize', resize);
   resize();
 
-  // parameters (lighter for performance)
+  // parameters
   const params = {
     rotation: 0,
-    spinSpeed: 0.0003,
-    starCount: 800,
-    coreRadius: Math.min(innerWidth, innerHeight) * 0.05
+    spinSpeed: 0.00025,
+    starCount: 1200,
+    coreRadius: Math.min(innerWidth, innerHeight) * 0.05,
+    arms: 10
   };
 
   // stars
@@ -43,24 +44,24 @@
     const W = innerWidth, H = innerHeight;
     const R = Math.hypot(W/2, H/2);
 
-    // spiral arms
-    const arms = 3;
     for(let i=0;i<params.starCount;i++){
-      const armAngle = (i % arms) / arms * Math.PI*2;
-      const t = Math.random() * R * 0.8;
-      const armOffset = (t / R) * 1.2 * Math.PI * 2;
-      const theta = armAngle + armOffset + (Math.random()-0.5)*0.6;
-      const spread = Math.random() * 40 * (1 - t/R);
+      const armAngle = (i % params.arms) / params.arms * Math.PI*2;
+      const t = Math.random() * R * 0.7;
+      const armOffset = (t / R) * 1.6 * Math.PI * 2;
+      const theta = armAngle + armOffset + (Math.random()-0.5)*0.4;
+      const spread = Math.random() * 35 * (1 - t/R);
       let x = Math.cos(theta) * t + (Math.random()-0.5) * spread;
-      let y = Math.sin(theta) * t + (Math.random()-0.5) * spread * 0.6;
+      let y = Math.sin(theta) * t + (Math.random()-0.5) * spread * 0.5;
 
-      // tilt for side view (rotate around X axis)
-      const tilt = 0.5; // radians
-      const z = y * Math.sin(tilt);
-      y = y * Math.cos(tilt);
-      
-      const size = Math.max(0.3, (1 - t/R) * 2.2);
-      const alpha = 0.5 + Math.random()*0.5;
+      // tilt to simulate Andromeda-like angle
+      const tiltX = 0.7; // around X axis
+      const tiltY = 0.3; // skew for perspective
+      const z = y * Math.sin(tiltX);
+      y = y * Math.cos(tiltX) - x * Math.sin(tiltY);
+      x = x * Math.cos(tiltY);
+
+      const size = Math.max(0.3, (1 - t/R) * 2.0);
+      const alpha = 0.4 + Math.random()*0.6;
       stars.push({x,y,z,size,alpha});
     }
   }
@@ -83,21 +84,21 @@
     ctx.rotate(params.rotation);
 
     for(let s of stars){
-      const depth = 1 + s.z * 0.002;
+      const depth = 1 + s.z * 0.0015;
       ctx.beginPath();
-      ctx.fillStyle = `rgba(${200+Math.random()*55},${200+Math.random()*55},255,${s.alpha})`;
+      ctx.fillStyle = `rgba(${180+Math.random()*75},${180+Math.random()*75},255,${s.alpha})`;
       ctx.arc(s.x/depth, s.y/depth, s.size/depth, 0, Math.PI*2);
       ctx.fill();
     }
 
-    // bright core
-    const grd = ctx.createRadialGradient(0,0,0,0,0, params.coreRadius*2);
-    grd.addColorStop(0,'rgba(255,255,240,1)');
-    grd.addColorStop(0.3,'rgba(255,200,220,0.6)');
+    // bright elliptical core
+    const grd = ctx.createRadialGradient(0,0,0,0,0, params.coreRadius*3);
+    grd.addColorStop(0,'rgba(255,255,230,1)');
+    grd.addColorStop(0.3,'rgba(255,200,220,0.7)');
     grd.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.arc(0,0, params.coreRadius*2, 0, Math.PI*2);
+    ctx.ellipse(0,0, params.coreRadius*4, params.coreRadius*1.6, 0, 0, Math.PI*2);
     ctx.fill();
 
     ctx.restore();
