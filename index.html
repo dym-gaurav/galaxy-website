@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Spiral Galaxy Replica</title>
+  <style>
+    :root{--bg1:#03030a;--bg2:#07102a;--accent1:#6ee7ff;--accent2:#7b5cff}
+    html,body{height:100%;margin:0;background:var(--bg1);font-family:system-ui,Segoe UI,Roboto,Arial}
+    canvas{display:block;width:100vw;height:100vh}
+    .ui{position:fixed;left:12px;top:12px;color:#dcecff;font-size:13px;background:rgba(0,0,0,0.25);backdrop-filter:blur(6px);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04)}
+    .ui label{display:inline-block;margin-right:6px}
+    .ui input[type=range]{width:140px}
+    .credits{position:fixed;right:12px;bottom:12px;color:#98a8e8;font-size:12px;opacity:0.9}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="ui">
+    <label>Arms</label><input id="arms" type="range" min="2" max="6" step="1" value="3"><br>
+    <label>Density</label><input id="density" type="range" min="0.2" max="3" step="0.1" value="1.2"><br>
+    <label>Twist</label><input id="twist" type="range" min="0.2" max="2.0" step="0.05" value="0.9">
+  </div>
+  <div class="credits">Galaxy replica • Move mouse to influence rotation</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  let DPR = Math.max(1, window.devicePixelRatio || 1);
+
+  function resize(){
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(innerWidth * DPR);
+    canvas.height = Math.floor(innerHeight * DPR);
+    canvas.style.width = innerWidth+'px';
+    canvas.style.height = innerHeight+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  // parameters
+  const params = {
+    arms: 3,
+    density: 1.2,
+    twist: 0.9,
+    rotation: 0,
+    spinSpeed: 0.0005,
+    starCount: 2600,
+    coreRadius: Math.min(innerWidth, innerHeight) * 0.06
+  };
+
+  // UI bindings
+  document.getElementById('arms').addEventListener('input', e=>params.arms = +e.target.value);
+  document.getElementById('density').addEventListener('input', e=>params.density = +e.target.value);
+  document.getElementById('twist').addEventListener('input', e=>params.twist = +e.target.value);
+
+  // generate stars across layers
+  let stars = [];
+  function regenerate(){
+    stars = [];
+    const W = innerWidth, H = innerHeight;
+    const R = Math.hypot(W/2, H/2);
+    const arms = params.arms;
+    const density = params.density;
+    const core = Math.min(W,H)*0.06;
+
+    // central bulge
+    for(let i=0;i<800 * density;i++){
+      const r = Math.pow(Math.random(), 0.6) * core * (1 + Math.random()*0.8);
+      const a = Math.random() * Math.PI * 2;
+      const x = r * Math.cos(a);
+      const y = r * Math.sin(a);
+      const size = 0.6 + Math.random()*1.6;
+      const bright = 0.7 + Math.random()*0.3;
+      const col = `rgba(${Math.floor(220*bright)},${Math.floor(240*bright)},${Math.floor(255)},${0.85+Math.random()*0.15})`;
+      stars.push({x,y,size,col,layer:2});
+    }
+
+    // spiral arms
+    for(let i=0;i<params.starCount;i++){
+      const aInd = i % arms;
+      const armAngle = (aInd/arms) * Math.PI*2;
+      // radial using skew to concentrate near center
+      const t = Math.pow(Math.random(), 1.2) * R * (0.95 + Math.random()*0.3);
+      const angleJitter = (Math.random() - 0.5) * 0.9;
+      const armOffset = (t / R) * params.twist * Math.PI * 2;
+      const theta = armAngle + armOffset + angleJitter;
+      // add some perpendicular spread
+      const spread = Math.random() * 60 * (1 - t/R + 0.03);
+      const x = Math.cos(theta) * t + (Math.random()-0.5) * spread;
+      const y = Math.sin(theta) * t + (Math.random()-0.5) * spread * 0.6;
+      const size = Math.max(0.3, (Math.random()*1.6) * (1 - t/R) + 0.3);
+      // color bluish -> pinkish gradient depending on radius
+      const mix = Math.min(1, t / (R*0.7));
+      const rCol = Math.floor(120 + 135 * mix + Math.random()*30);
+      const gCol = Math.floor(140 + 80 * (1-mix) + Math.random()*30);
+      const bCol = Math.floor(200 + 55 * (1-mix) + Math.random()*55);
+      const alpha = 0.5 + Math.random()*0.6;
+      const col = `rgba(${rCol},${gCol},${bCol},${alpha.toFixed(3)})`;
+      stars.push({x,y,size,col,layer:1,rad:Math.hypot(x,y)});
+    }
+
+    // faint background stars
+    for(let i=0;i<700;i++){
+      const x = (Math.random()-0.5) * innerWidth * 2;
+      const y = (Math.random()-0.5) * innerHeight * 2;
+      const size = Math.random()*1.2;
+      const g = 220 + Math.floor(Math.random()*35);
+      const col = `rgba(${g},${g},${255},${0.35+Math.random()*0.4})`;
+      stars.push({x,y,size,col,layer:0});
+    }
+  }
+
+  regenerate();
+  addEventListener('resize', ()=>{ params.coreRadius = Math.min(innerWidth, innerHeight) * 0.06; regenerate(); });
+
+  // create nebula texture (offscreen) — several graded blobs
+  function makeNebula(){
+    const s = Math.max(innerWidth, innerHeight);
+    const oc = document.createElement('canvas');
+    oc.width = s * DPR; oc.height = s * DPR;
+    const octx = oc.getContext('2d');
+    octx.scale(DPR,DPR);
+
+    // soft radial gradient at center
+    const g = octx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s*0.9);
+    g.addColorStop(0, 'rgba(40,50,90,0.6)');
+    g.addColorStop(0.3, 'rgba(20,30,60,0.5)');
+    g.addColorStop(1, 'rgba(2,6,12,0.95)');
+    octx.fillStyle = g;
+    octx.fillRect(0,0,s,s);
+
+    // paint a few colored soft blobs for nebula arms
+    const blobs = [
+      {x:0.46,y:0.46,r:0.9,c:'rgba(120,170,255,0.06)'},
+      {x:0.6,y:0.5,r:0.85,c:'rgba(180,120,255,0.04)'},
+      {x:0.5,y:0.53,r:0.6,c:'rgba(110,200,255,0.045)'},
+      {x:0.45,y:0.55,r:0.7,c:'rgba(255,160,200,0.03)'}
+    ];
+    blobs.forEach(b=>{
+      const rg = octx.createRadialGradient(s*b.x, s*b.y, 0, s*b.x, s*b.y, s*b.r);
+      rg.addColorStop(0, b.c);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      octx.globalCompositeOperation = 'lighter';
+      octx.fillStyle = rg;
+      octx.beginPath();
+      octx.arc(s*b.x, s*b.y, s*b.r, 0, Math.PI*2);
+      octx.fill();
+    });
+
+    // subtle noise overlay
+    const imgd = octx.createImageData(256,256);
+    for(let i=0;i<imgd.data.length;i+=4){
+      const v = Math.floor(Math.random()*40);
+      imgd.data[i]=v; imgd.data[i+1]=v; imgd.data[i+2]=v; imgd.data[i+3]=10;
+    }
+    const tmp = document.createElement('canvas'); tmp.width=256; tmp.height=256; tmp.getContext('2d').putImageData(imgd,0,0);
+    octx.globalCompositeOperation = 'overlay';
+    octx.globalAlpha = 0.12;
+    octx.drawImage(tmp,0,0,s,s);
+
+    return oc;
+  }
+  let nebula = makeNebula();
+  addEventListener('resize', ()=>{ nebula = makeNebula(); });
+
+  // mouse influence
+  let mx = 0, my = 0;
+  addEventListener('mousemove', (e)=>{ mx = (e.clientX / innerWidth - 0.5) * 2; my = (e.clientY / innerHeight - 0.5) * -2; });
+
+  // render loop
+  let last = performance.now();
+  function draw(now){
+    const dt = now - last; last = now;
+    const W = innerWidth, H = innerHeight;
+
+    // background gradient
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0, '#020417');
+    bg.addColorStop(0.5, '#07102a');
+    bg.addColorStop(1, '#000006');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,W,H);
+
+    // draw nebula (centered)
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const nebW = Math.max(W,H) * 1.4;
+    ctx.drawImage(nebula, W/2 - nebW/2, H/2 - nebW/2, nebW, nebW);
+    ctx.restore();
+
+    // rotate galaxy slowly influenced by mouse
+    params.rotation += params.spinSpeed * (1 + Math.abs(mx)*2) * dt * (mx||0.9);
+
+    // translate to center
+    ctx.save();
+    ctx.translate(W/2, H/2);
+    ctx.rotate(params.rotation);
+
+    // draw faint dust lanes carved out by destination-out arcs for depth
+    ctx.save();
+    for(let i=0;i<params.arms;i++){
+      ctx.beginPath();
+      const angle = (i/params.arms)*Math.PI*2;
+      ctx.rotate(angle);
+      // draw long soft arc
+      const grad = ctx.createLinearGradient(-W/2,0,W/2,0);
+      grad.addColorStop(0,'rgba(0,0,0,0)');
+      grad.addColorStop(0.5,'rgba(0,0,0,0.05)');
+      grad.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.ellipse(0,0,Math.max(W,H)*0.9,Math.max(W,H)*0.28, -0.6, -Math.PI/2, Math.PI/2);
+      ctx.fill();
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      ctx.translate(W/2, H/2);
+      ctx.rotate(params.rotation);
+    }
+    ctx.restore();
+
+    // draw stars (layered for parallax)
+    // layer 0: distant tiny stars
+    ctx.globalCompositeOperation = 'lighter';
+    for(let s of stars){
+      // parallax by layer
+      let px = s.x, py = s.y;
+      // small rotation/parallax per radial distance
+      const depth = s.layer===0?0.6: s.layer===1?1.0 : 1.4;
+      const spin = params.rotation * 0.3 * (1 - (s.rad||0)/Math.hypot(W/2,H/2));
+      const cos = Math.cos(spin), sin = Math.sin(spin);
+      const rx = px * cos - py * sin;
+      const ry = px * sin + py * cos;
+
+      ctx.save();
+      ctx.translate(rx, ry + (my*40*(s.layer-0.8)) );
+      // glow
+      ctx.beginPath();
+      ctx.shadowBlur = Math.min(30, 6 + s.size*8);
+      ctx.shadowColor = s.col;
+      ctx.fillStyle = s.col;
+      ctx.arc(0,0, s.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // crisp core
+      if(s.size>0.6){
+        ctx.beginPath();
+        ctx.fillStyle = s.col;
+        ctx.arc(0,0, s.size*0.45, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // central bright core
+    const grd = ctx.createRadialGradient(0,0,0,0,0, params.coreRadius*1.8);
+    grd.addColorStop(0,'rgba(255,255,240,1)');
+    grd.addColorStop(0.15,'rgba(255,220,200,0.85)');
+    grd.addColorStop(0.45,'rgba(220,200,255,0.15)');
+    grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.beginPath();
+    ctx.fillStyle = grd;
+    ctx.arc(0,0, params.coreRadius*1.8, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore(); // back to screen
+
+    // subtle vignette
+    ctx.save();
+    const v = ctx.createRadialGradient(W/2,H/2,Math.max(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.8);
+    v.addColorStop(0,'rgba(0,0,0,0)');
+    v.addColorStop(1,'rgba(0,0,0,0.5)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+
+  // small optimization: regenerate stars on demand
+  let regenTimeout=null;
+  ['arms','density','twist'].forEach(id=>document.getElementById(id).addEventListener('input', ()=>{
+    if(regenTimeout) clearTimeout(regenTimeout);
+    regenTimeout = setTimeout(()=>{ regenerate(); }, 200);
+  }));
+
+})();
+</script>
+</body>
+</html>
