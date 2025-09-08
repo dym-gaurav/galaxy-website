@@ -7,13 +7,15 @@
 <style>
   html,body{height:100%;margin:0;background:#000;overflow:hidden;cursor:grab}
   canvas{display:block;width:100vw;height:100vh}
-  #fullscreenBtn, #leaveStarBtn, #friendsBtn, #syncBtn{position:fixed;z-index:10;background:#111a;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  #fullscreenBtn:hover, #leaveStarBtn:hover, #friendsBtn:hover, #syncBtn:hover{ background:#333a; }
-  #fullscreenBtn svg, #leaveStarBtn svg, #friendsBtn svg, #syncBtn svg{ width:22px;height:22px;fill:#fff; }
+  #fullscreenBtn, #leaveStarBtn, #friendsBtn, #syncBtn, #toggleNamesBtn{position:fixed;z-index:10;background:#111a;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #fullscreenBtn:hover, #leaveStarBtn:hover, #friendsBtn:hover, #syncBtn:hover, #toggleNamesBtn:hover{ background:#333a; }
+  #fullscreenBtn svg, #leaveStarBtn svg, #friendsBtn svg, #syncBtn svg, #toggleNamesBtn svg{ width:22px;height:22px;fill:#fff; }
   #fullscreenBtn{bottom:15px;right:15px;}
-  #leaveStarBtn{bottom:70px;right:15px;}
+  #leaveStarBtn{bottom:70px;right:15px;width:auto;border-radius:20px;padding:0 15px;gap:8px;}
+  #leaveStarBtn span{color:#fff;font-size:14px;font-weight:500;}
   #friendsBtn{top:15px;right:15px;}
   #syncBtn{top:70px;right:15px;}
+  #toggleNamesBtn{top:125px;right:15px;}
   .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.92); padding: 10px 18px; border-radius: 20px; font-weight:600; box-shadow: 0 6px 18px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity .25s, transform .25s; transform-origin:center top; }
   .modal-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);z-index:200;backdrop-filter: blur(4px);display:none}
   .modal{background:#222;padding:24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.8);color:#fff;min-width:300px;border:1px solid #444}
@@ -51,6 +53,7 @@
 
   <button id="leaveStarBtn" title="Leave a Star">
     <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+    <span>Leave a Star</span>
   </button>
 
   <button id="friendsBtn" title="View All Stars">
@@ -60,6 +63,10 @@
   <button id="syncBtn" title="Sync with Server">
     <svg class="sync-spinner" viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
     <svg class="sync-icon" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </button>
+
+  <button id="toggleNamesBtn" title="Toggle Names">
+    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-6h11v6zm5 0h-3v-6h3v6zm0-8H4V6h16v4z"/></svg>
   </button>
 
   <div id="nameModal" class="modal-overlay" aria-hidden="true">
@@ -83,10 +90,10 @@
 <script>
 (() => {
   // ---------- CONFIG ----------
-  const BIN_ID = "68bf25c8d0ea881f40765eed"; // your bin id (for remote testing)
-  const API_KEY = "$2a$10$ZZmri.xNpvu4cY6Iwt1z0ORO.UqK6oYspAWWzBVC0.zEBxRF3FAay"; // demo only — don't expose in prod
+  const BIN_ID = "68bf25c8d0ea881f40765eed";
+  const API_KEY = "$2a$10$ZZmri.xNpvu4cY6Iwt1z0ORO.UqK6oYspAWWzBVC0.zEBxRF3FAay";
   const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-  const REMOTE_TIMEOUT_MS = 6000; // 6s
+  const REMOTE_TIMEOUT_MS = 6000;
   const params = {
     spinSpeed: 0.00018,
     starCount: 1400,
@@ -103,8 +110,9 @@
   let DPR = Math.max(1, window.devicePixelRatio || 1);
   let CAMERA_DISTANCE = 1000;
   let stars = [];
-  let persistedStars = []; // array of {id:string, name:string}
+  let persistedStars = [];
   let saveTimeout = null;
+  let showNames = true; // Toggle for showing names
 
   function toast(msg){
     const el = document.createElement('div');
@@ -140,10 +148,9 @@
         headers: { 'X-Master-Key': API_KEY }
       }, REMOTE_TIMEOUT_MS);
       
-      if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
       
       const json = await res.json();
-      // JSONBin v3 typically returns { record: ... }
       let incoming = null;
       if(Array.isArray(json)) incoming = json;
       else if(json && Array.isArray(json.record)) incoming = json.record;
@@ -153,17 +160,13 @@
         }
       }
       
-      if(!incoming) throw new Error('Invalid JSON shape from remote (no array found)');
+      if(!incoming) throw new Error('Invalid JSON shape from remote');
       
       persistedStars = incoming.map(it => ({ id: String(it.id), name: it.name }));
       console.info('Loaded remote persistedStars', persistedStars);
-      toast('Loaded stars from server');
       
     } catch(err){
       console.warn('Remote load failed:', err);
-      if(err.name === 'AbortError') toast('Server load timed out');
-      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Network error - cannot connect to server');
-      else toast('Could not load stars from server');
     } finally {
       // Restore sync icon
       document.querySelector('.sync-icon').style.display = 'block';
@@ -186,13 +189,9 @@
       
       if(!res.ok) throw new Error('HTTP ' + res.status);
       
-      toast('Saved to server');
       console.info('Remote save OK');
     } catch(err){
       console.warn('Remote save failed:', err);
-      if(err.name === 'AbortError') toast('Server save timed out');
-      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Network error - cannot save to server');
-      else toast('Server save failed');
     } finally {
       // Restore sync icon
       document.querySelector('.sync-icon').style.display = 'block';
@@ -220,7 +219,7 @@
     const W = innerWidth, H = innerHeight;
     const R = Math.hypot(W/2, H/2);
 
-    // Spiral stars — deterministic IDs (based on index) so persisted names map correctly
+    // Spiral stars
     for(let i=0;i<params.starCount;i++){
       const arm = i % params.arms;
       const armAngle = (arm / params.arms) * Math.PI*2;
@@ -233,7 +232,6 @@
       const baseY = Math.sin(theta) * t + (Math.random()-0.5) * spread * 0.6;
       const baseZ = (Math.random() - 0.5) * Math.max(60, window.innerWidth*0.08) * params.coreHeightFactor;
 
-      // ensure positive sizes
       let size;
       if (Math.random() < 0.65) {
         size = Math.max(0.6, (1 - t / R) * 2.8);
@@ -241,7 +239,6 @@
         size = Math.max(0.3, (1 - t / R) * 1.5);
       }
 
-      // deterministic ID
       const id = `spiral-${i}`;
 
       let color;
@@ -276,7 +273,7 @@
       });
     }
 
-    // Background stars — deterministic ids based on index
+    // Background stars
     for(let i=0;i<params.bgStarCount;i++){
       const radius = Math.random() * R * 1.3;
       const angle = Math.random() * Math.PI * 2;
@@ -299,7 +296,6 @@
       });
     }
 
-    // Ensure names from persistedStars apply
     applyPersistedNames();
   }
 
@@ -329,6 +325,12 @@
     applyPersistedNames();
   });
 
+  // toggle names button
+  document.getElementById('toggleNamesBtn').addEventListener('click', ()=>{ 
+    showNames = !showNames;
+    
+  });
+
   // -------------- leave star modal --------------
   const nameModal = document.getElementById('nameModal');
   const nameInput = document.getElementById('nameInput');
@@ -354,11 +356,11 @@
       chosen.name = name;
       chosen.burst = true;
       chosen.burstStart = performance.now();
-      // update persistedStars record (id as string)
       const idx = persistedStars.findIndex(ps => String(ps.id) === String(chosen.id));
       if(idx !== -1) persistedStars[idx].name = name;
       else persistedStars.push({ id: String(chosen.id), name });
       saveStarsToDB();
+      toast('Star created!');
     } catch(err){
       console.error('assign name failed', err);
       toast('Failed to assign name');
@@ -426,7 +428,6 @@
           const denom = Math.max(120, CAMERA_DISTANCE + rz);
           const proj = CAMERA_DISTANCE / denom;
           const sx = rx * proj, sy = ry * proj;
-          // ensure positive and non-zero values for arc radius
           const safeSize = Math.abs(s.size || 0.5);
           const screenR = Math.max(0.15, safeSize * Math.max(0.001, proj));
 
@@ -450,7 +451,7 @@
             ctx.beginPath(); ctx.fillStyle = fillStyle; ctx.arc(sx, sy, screenR, 0, Math.PI*2); ctx.fill();
           }
 
-          if(s.name){
+          if(s.name && showNames){
             ctx.fillStyle = "#fff"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
             ctx.fillText(s.name, sx, sy - Math.max(8, screenR*2));
           }
@@ -474,9 +475,9 @@
 
   // ---------- init ----------
   (async function init(){
-    await loadStarsFromDB();   // loads persistedStars from remote only
-    regenerate();              // generate stars (deterministic IDs)
-    applyPersistedNames();     // ensure names are applied
+    await loadStarsFromDB();
+    regenerate();
+    applyPersistedNames();
     requestAnimationFrame(draw);
   })();
 
