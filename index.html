@@ -3,22 +3,43 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Galaxy Preview — Stable IDs & robust</title>
+<title>Galaxy Preview — Remote Storage Only</title>
 <style>
   html,body{height:100%;margin:0;background:#000;overflow:hidden;cursor:grab}
   canvas{display:block;width:100vw;height:100vh}
-  #fullscreenBtn{position:fixed;bottom:15px;right:15px;z-index:10;background:#111a;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  #fullscreenBtn:hover{ background:#333a; }
-  #fullscreenBtn svg{ width:22px;height:22px;fill:#fff; }
-  #leaveStarBtn{position:fixed;bottom:15px;left:15px;z-index:10;background:#ffd700aa;border:none;border-radius:20px;padding:10px 18px;font-size:14px;font-weight:bold;color:#000;cursor:pointer;box-shadow:0 0 8px #ffd70088}
-  #leaveStarBtn:hover{ background:#ffe066; }
+  #fullscreenBtn, #leaveStarBtn, #friendsBtn, #syncBtn{position:fixed;z-index:10;background:#111a;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #fullscreenBtn:hover, #leaveStarBtn:hover, #friendsBtn:hover, #syncBtn:hover{ background:#333a; }
+  #fullscreenBtn svg, #leaveStarBtn svg, #friendsBtn svg, #syncBtn svg{ width:22px;height:22px;fill:#fff; }
+  #fullscreenBtn{bottom:15px;right:15px;}
+  #leaveStarBtn{bottom:70px;right:15px;}
+  #friendsBtn{top:15px;right:15px;}
+  #syncBtn{top:70px;right:15px;}
   .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.92); padding: 10px 18px; border-radius: 20px; font-weight:600; box-shadow: 0 6px 18px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity .25s, transform .25s; transform-origin:center top; }
-  .modal-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:200;backdrop-filter: blur(2px);display:none}
-  .modal{background:#111;padding:18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.6);color:#fff;min-width:280px}
-  .modal h3{margin:0 0 8px 0;font-size:16px}
-  .modal input{width:100%;padding:8px;border-radius:8px;border:1px solid #333;background:#0b0b0b;color:#fff;margin-bottom:10px}
-  .modal .buttons{display:flex;gap:8px;justify-content:flex-end}
-  .modal button{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+  .modal-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);z-index:200;backdrop-filter: blur(4px);display:none}
+  .modal{background:#222;padding:24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.8);color:#fff;min-width:300px;border:1px solid #444}
+  .modal h3{margin:0 0 16px 0;font-size:18px;text-align:center;color:#fff}
+  .modal input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background:#1a1a1a;color:#fff;margin-bottom:16px;font-size:16px;box-sizing:border-box}
+  .modal input:focus{outline:none;border-color:#666}
+  .modal .buttons{display:flex;gap:10px;justify-content:center}
+  .modal button{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:600;transition:background .2s}
+  #nameCancel{background:#444;color:#fff}
+  #nameCancel:hover{background:#555}
+  #nameOk{background:#2d7dff;color:#fff}
+  #nameOk:hover{background:#3d8dff}
+  #friendsModal .modal{max-width:400px;max-height:70vh;overflow-y:auto}
+  .friend-item{padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between}
+  .friend-item:last-child{border-bottom:none}
+  .friend-name{font-weight:500}
+  .friend-id{color:#888;font-size:12px}
+  .no-friends{padding:20px;text-align:center;color:#888}
+  .sync-spinner {
+    animation: spin 1s linear infinite;
+    display: none;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 </style>
 </head>
 <body>
@@ -28,16 +49,34 @@
     <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zm-3-12v2h3v3h2V5h-5z"/></svg>
   </button>
 
-  <button id="leaveStarBtn">Leave a Star ⭐</button>
+  <button id="leaveStarBtn" title="Leave a Star">
+    <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+  </button>
+
+  <button id="friendsBtn" title="View All Stars">
+    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+  </button>
+
+  <button id="syncBtn" title="Sync with Server">
+    <svg class="sync-spinner" viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+    <svg class="sync-icon" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </button>
 
   <div id="nameModal" class="modal-overlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true">
-      <h3>Leave a Star — enter your name</h3>
-      <input id="nameInput" placeholder="Your name" maxlength="40" />
+      <h3>Name Your Star</h3>
+      <input id="nameInput" placeholder="Enter your name" maxlength="40" />
       <div class="buttons">
         <button id="nameCancel">Cancel</button>
-        <button id="nameOk">OK</button>
+        <button id="nameOk">Create Star</button>
       </div>
+    </div>
+  </div>
+
+  <div id="friendsModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>Named Stars</h3>
+      <div id="friendsList"></div>
     </div>
   </div>
 
@@ -47,7 +86,6 @@
   const BIN_ID = "68bf25c8d0ea881f40765eed"; // your bin id (for remote testing)
   const API_KEY = "$2a$10$ZZmri.xNpvu4cY6Iwt1z0ORO.UqK6oYspAWWzBVC0.zEBxRF3FAay"; // demo only — don't expose in prod
   const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-  const LOCAL_KEY = 'galaxy.persistedStars.v1';
   const REMOTE_TIMEOUT_MS = 6000; // 6s
   const params = {
     spinSpeed: 0.00018,
@@ -91,27 +129,19 @@
     }
   }
 
-  // ------------- load (local first, then remote merge) -------------
+  // ------------- load from remote only -------------
   async function loadStarsFromDB(){
-    // local
-    try {
-      const raw = localStorage.getItem(LOCAL_KEY);
-      if(raw){
-        const parsed = JSON.parse(raw);
-        if(Array.isArray(parsed)) {
-          persistedStars = parsed.map(p => ({ id: String(p.id), name: p.name }));
-          console.info('Loaded persistedStars from localStorage', persistedStars);
-          toast('Loaded saved stars (local)');
-        }
-      }
-    } catch(err){ console.warn('localStorage read error', err); }
-
-    // remote (best-effort, fast-fail)
+    // Show loading state
+    document.querySelector('.sync-icon').style.display = 'none';
+    document.querySelector('.sync-spinner').style.display = 'block';
+    
     try {
       const res = await fetchWithTimeout(JSONBIN_URL + '/latest', {
         headers: { 'X-Master-Key': API_KEY }
       }, REMOTE_TIMEOUT_MS);
+      
       if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      
       const json = await res.json();
       // JSONBin v3 typically returns { record: ... }
       let incoming = null;
@@ -122,46 +152,51 @@
           if(Array.isArray(json[k])) { incoming = json[k]; break; }
         }
       }
+      
       if(!incoming) throw new Error('Invalid JSON shape from remote (no array found)');
-      incoming = incoming.map(it => ({ id: String(it.id), name: it.name }));
-      // Merge: remote overrides local
-      const map = new Map();
-      (persistedStars || []).forEach(p => map.set(String(p.id), p));
-      incoming.forEach(p => map.set(String(p.id), p));
-      persistedStars = Array.from(map.values());
-      try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(persistedStars)); }catch(e){}
-      console.info('Loaded and merged remote persistedStars', persistedStars);
-      toast('Loaded saved stars (remote)');
+      
+      persistedStars = incoming.map(it => ({ id: String(it.id), name: it.name }));
+      console.info('Loaded remote persistedStars', persistedStars);
+      toast('Loaded stars from server');
+      
     } catch(err){
       console.warn('Remote load failed:', err);
-      if(err.name === 'AbortError') toast('Remote load timed out — using local copies');
-      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Remote load failed (network/CORS) — using local copies');
-      else toast('Could not load remote stars — using local copies');
+      if(err.name === 'AbortError') toast('Server load timed out');
+      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Network error - cannot connect to server');
+      else toast('Could not load stars from server');
+    } finally {
+      // Restore sync icon
+      document.querySelector('.sync-icon').style.display = 'block';
+      document.querySelector('.sync-spinner').style.display = 'none';
     }
   }
 
-  // ------------- save (local immediate + debounced remote) -------------
-  function scheduleSaveStarsToDB(){
-    try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(persistedStars)); } catch(e){ console.warn('local save failed', e); }
-    if(saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => saveStarsToDB().catch(() => {}), 400);
-  }
-
+  // ------------- save to remote only -------------
   async function saveStarsToDB(){
+    // Show loading state
+    document.querySelector('.sync-icon').style.display = 'none';
+    document.querySelector('.sync-spinner').style.display = 'block';
+    
     try {
       const res = await fetchWithTimeout(JSONBIN_URL, {
         method: 'PUT',
         headers: {'Content-Type':'application/json','X-Master-Key':API_KEY},
         body: JSON.stringify(persistedStars)
       }, REMOTE_TIMEOUT_MS);
+      
       if(!res.ok) throw new Error('HTTP ' + res.status);
-      toast('Saved to remote');
+      
+      toast('Saved to server');
       console.info('Remote save OK');
     } catch(err){
       console.warn('Remote save failed:', err);
-      if(err.name === 'AbortError') toast('Remote save timed out — saved locally');
-      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Remote save failed (network/CORS) — saved locally');
-      else toast('Remote save failed — saved locally');
+      if(err.name === 'AbortError') toast('Server save timed out');
+      else if(err instanceof TypeError && err.message.includes('Failed to fetch')) toast('Network error - cannot save to server');
+      else toast('Server save failed');
+    } finally {
+      // Restore sync icon
+      document.querySelector('.sync-icon').style.display = 'block';
+      document.querySelector('.sync-spinner').style.display = 'none';
     }
   }
 
@@ -288,10 +323,16 @@
   // fullscreen button
   document.getElementById('fullscreenBtn').addEventListener('click', ()=>{ if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen().catch(()=>{}); });
 
+  // sync button
+  document.getElementById('syncBtn').addEventListener('click', async ()=>{ 
+    await loadStarsFromDB();
+    applyPersistedNames();
+  });
+
   // -------------- leave star modal --------------
   const nameModal = document.getElementById('nameModal');
   const nameInput = document.getElementById('nameInput');
-  const nameOk = document.getElementById('nameOk') || document.getElementById('nameOk'); // fallback
+  const nameOk = document.getElementById('nameOk');
   const nameCancel = document.getElementById('nameCancel');
 
   function openNameModal(){ nameInput.value=''; nameModal.style.display='flex'; nameModal.setAttribute('aria-hidden','false'); setTimeout(()=> nameInput.focus(),60); }
@@ -317,12 +358,50 @@
       const idx = persistedStars.findIndex(ps => String(ps.id) === String(chosen.id));
       if(idx !== -1) persistedStars[idx].name = name;
       else persistedStars.push({ id: String(chosen.id), name });
-      scheduleSaveStarsToDB();
+      saveStarsToDB();
     } catch(err){
       console.error('assign name failed', err);
       toast('Failed to assign name');
     }
   }
+
+  // -------------- friends list modal --------------
+  const friendsModal = document.getElementById('friendsModal');
+  const friendsList = document.getElementById('friendsList');
+  
+  document.getElementById('friendsBtn').addEventListener('click', () => {
+    updateFriendsList();
+    friendsModal.style.display = 'flex';
+    friendsModal.setAttribute('aria-hidden', 'false');
+  });
+  
+  function updateFriendsList() {
+    if (persistedStars.length === 0) {
+      friendsList.innerHTML = '<div class="no-friends">No stars have been named yet</div>';
+      return;
+    }
+    
+    let html = '';
+    persistedStars.forEach(star => {
+      html += `
+        <div class="friend-item">
+          <span class="friend-name">${star.name}</span>
+          <span class="friend-id">#${star.id.substring(0, 8)}</span>
+        </div>
+      `;
+    });
+    friendsList.innerHTML = html;
+  }
+  
+  // Close modals when clicking outside
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    });
+  });
 
   // --------------- drawing ---------------
   let last = performance.now();
@@ -395,9 +474,9 @@
 
   // ---------- init ----------
   (async function init(){
-    await loadStarsFromDB();   // loads persistedStars (local + remote merge)
+    await loadStarsFromDB();   // loads persistedStars from remote only
     regenerate();              // generate stars (deterministic IDs)
-    applyPersistedNames();     // ensure names are applied (should already be done in regenerate but safe)
+    applyPersistedNames();     // ensure names are applied
     requestAnimationFrame(draw);
   })();
 
@@ -405,4 +484,3 @@
 </script>
 </body>
 </html>
-
