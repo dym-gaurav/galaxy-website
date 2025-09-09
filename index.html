@@ -7,6 +7,27 @@
 <style>
   html,body{height:100%;margin:0;background:#000;overflow:hidden;cursor:grab}
   canvas{display:block;width:100vw;height:100vh}
+
+  /* 🔵 Blue star wallpaper */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, rgba(100,150,255,0.9) 0px, transparent 2px) repeat;
+    background-size: 40px 40px;
+    opacity: 0.25;
+    z-index: -1;
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle, rgba(100,150,255,0.6) 0px, transparent 3px) repeat;
+    background-size: 80px 80px;
+    opacity: 0.15;
+    z-index: -1;
+  }
+
   #fullscreenBtn, #leaveStarBtn, #friendsBtn, #syncBtn, #toggleNamesBtn{position:fixed;z-index:10;background:#111a;border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer}
   #fullscreenBtn:hover, #leaveStarBtn:hover, #friendsBtn:hover, #syncBtn:hover, #toggleNamesBtn:hover{ background:#333a; }
   #fullscreenBtn svg, #leaveStarBtn svg, #friendsBtn svg, #syncBtn svg, #toggleNamesBtn svg{ width:22px;height:22px;fill:#fff; }
@@ -101,10 +122,22 @@
     cameraDistanceFactor: 1.6,
     armTightness: 6.2,
     coreHeightFactor: 0.1,
-    bgStarCount: 900
+    bgStarCount: 900 
   };
   // ----------------------------
-
+   // 🔒 Block Inspect Element
+  document.addEventListener("contextmenu", e => e.preventDefault());
+  document.addEventListener("keydown", e => {
+    if (
+      e.key === "F12" ||
+      (e.ctrlKey && e.shiftKey && ["I","C","J"].includes(e.key)) ||
+      (e.ctrlKey && e.key === "u")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      alert("Inspect is disabled 🚫");
+    }
+  });
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
   let DPR = Math.max(1, window.devicePixelRatio || 1);
@@ -346,25 +379,31 @@
   nameOk.addEventListener('click', onNameOk);
 
   function onNameOk(){
-    const name = (nameInput.value || '').trim();
-    if(!name){ toast('Name cannot be empty'); return; }
-    closeNameModal();
-    try {
-      const candidates = stars.filter(s => !s.twinkle && !s.name);
-      if(candidates.length === 0){ toast('No available stars'); return; }
-      const chosen = candidates[Math.floor(Math.random()*candidates.length)];
-      chosen.name = name;
-      chosen.burst = true;
-      chosen.burstStart = performance.now();
-      const idx = persistedStars.findIndex(ps => String(ps.id) === String(chosen.id));
-      if(idx !== -1) persistedStars[idx].name = name;
-      else persistedStars.push({ id: String(chosen.id), name });
-      saveStarsToDB();
-      toast('Star created!');
-    } catch(err){
-      console.error('assign name failed', err);
-      toast('Failed to assign name');
-    }
+  const name = (nameInput.value || '').trim();
+  if(!name){ toast('Name cannot be empty'); return; }
+  closeNameModal();
+  try {
+    const candidates = stars.filter(s => !s.twinkle && !s.name);
+    if(candidates.length === 0){ toast('No available stars'); return; }
+    const chosen = candidates[Math.floor(Math.random()*candidates.length)];
+    chosen.name = name;
+    chosen.burst = true;
+    chosen.burstStart = performance.now();
+    const idx = persistedStars.findIndex(ps => String(ps.id) === String(chosen.id));
+    if(idx !== -1) persistedStars[idx].name = name;
+    else persistedStars.push({ id: String(chosen.id), name });
+    saveStarsToDB();
+    
+
+    // 🔒 Disable the button after first use
+    const leaveBtn = document.getElementById('leaveStarBtn');
+    leaveBtn.disabled = true;
+    leaveBtn.style.opacity = "0.5";
+    leaveBtn.style.cursor = "not-allowed";
+  } catch(err){
+    console.error('assign name failed', err);
+    toast('Failed to assign name');
+  }
   }
 
   // -------------- friends list modal --------------
@@ -452,7 +491,7 @@
           }
 
           if(s.name && showNames){
-            ctx.fillStyle = "#fff"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+            ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
             ctx.fillText(s.name, sx, sy - Math.max(8, screenR*2));
           }
         }catch(err){ console.warn('star draw error', err); }
